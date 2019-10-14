@@ -20,7 +20,8 @@
 
 (defctype DWORD :unsigned-int)
 
-(defctype HANDLE (:pointer :void))
+;; (defctype HANDLE (:pointer :void))
+(defctype HANDLE :unsigned-int)
 
 (defcstruct _overlapped
   (Internal :unsigned-long)
@@ -49,15 +50,29 @@
   (nNumberOfBytesToUnlockHigh DWORD)
   (lpOverlapped LPOVERLAPPED))
 
+;;; TODO GetLastError
+
 (defun lock-stream-file (stream direction)
   (let ((device (ccl::stream-device stream direction))
         (overlapped (overlapped)))
-    (prog1 (lock-file-ex device
-                         (logior LOCKFILE-EXCLUSIVE-LOCK
-                                 LOCKFILE-FAIL-IMMEDIATELY)
+    (unwind-protect
+         (lock-file-ex device
+                       (logior LOCKFILE-EXCLUSIVE-LOCK
+                               LOCKFILE-FAIL-IMMEDIATELY)
+                       0
+                       MAXDWORD
+                       MAXDWORD
+                       overlapped)
+      (cffi:foreign-free overlapped))))
+
+(defun unlock-stream-file (stream direction)
+  (let ((device (ccl::stream-device stream direction))
+        (overlapped (overlapped)))
+    (unwind-protect
+         (unlock-file-ex device
                          0
-                         0
-                         0
+                         MAXDWORD
+                         MAXDWORD
                          overlapped)
       (cffi:foreign-free overlapped))))
 
