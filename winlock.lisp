@@ -50,30 +50,35 @@
   (nNumberOfBytesToUnlockHigh DWORD)
   (lpOverlapped LPOVERLAPPED))
 
+(defcfun ("GetLastError" get-last-error) DWORD)
+
 ;;; TODO GetLastError
+;;; https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes--0-499-
 
 (defun lock-stream-file (stream direction)
   (let ((device (ccl::stream-device stream direction))
         (overlapped (overlapped)))
     (unwind-protect
-         (lock-file-ex device
-                       (logior LOCKFILE-EXCLUSIVE-LOCK
-                               LOCKFILE-FAIL-IMMEDIATELY)
-                       0
-                       MAXDWORD
-                       MAXDWORD
-                       overlapped)
+         (or (lock-file-ex device
+                           (logior LOCKFILE-EXCLUSIVE-LOCK
+                                   LOCKFILE-FAIL-IMMEDIATELY)
+                           0
+                           MAXDWORD
+                           MAXDWORD
+                           overlapped)
+             (get-last-error))
       (cffi:foreign-free overlapped))))
 
 (defun unlock-stream-file (stream direction)
   (let ((device (ccl::stream-device stream direction))
         (overlapped (overlapped)))
     (unwind-protect
-         (unlock-file-ex device
-                         0
-                         MAXDWORD
-                         MAXDWORD
-                         overlapped)
+         (or (unlock-file-ex device
+                             0
+                             MAXDWORD
+                             MAXDWORD
+                             overlapped)
+             (get-last-error))
       (cffi:foreign-free overlapped))))
 
 ;;; ! lockfileex(file, dwFlags, 0, 1, 0, &ov))
