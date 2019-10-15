@@ -5,10 +5,6 @@
 (load-foreign-library "kernel32.dll")
 (load-foreign-library "msvcrt.dll")
 
-;;; lock_ex = LOCKFILE_EXCLUSIVE_LOCK
-;;; Lock_SH = 0
-;;; lock_nb = LOCKfile_fail_immediately
-
 (defconst MAXDWORD #xffffffff)
 
 (defconst LOCKFILE-EXCLUSIVE-LOCK #x02
@@ -16,12 +12,10 @@
 (defconst LOCKFILE-FAIL-IMMEDIATELY #x01
   "The function returns immediately if it is unable to acquire the requested lock. Otherwise, it waits.")
 
-;;; TODO only unlock if the process id is the same?
-
 (defctype DWORD :unsigned-int)
 
 ;; (defctype HANDLE (:pointer :void))
-(defctype HANDLE :unsigned-int)
+(defctype HANDLE :pointer)
 
 (defcstruct _overlapped
   (Internal :unsigned-long)
@@ -56,10 +50,12 @@
 ;;; https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes--0-499-
 
 (defun lock-stream-file (stream direction)
-  (let ((device (ccl::stream-device stream direction))
-        (overlapped (overlapped)))
+  (lock-handle (ccl::stream-device stream direction)))
+
+(defun lock-handle (handle)
+  (let ((overlapped (overlapped)))
     (unwind-protect
-         (or (lock-file-ex device
+         (or (lock-file-ex (make-pointer handle)
                            (logior LOCKFILE-EXCLUSIVE-LOCK
                                    LOCKFILE-FAIL-IMMEDIATELY)
                            0
@@ -70,16 +66,15 @@
       (cffi:foreign-free overlapped))))
 
 (defun unlock-stream-file (stream direction)
-  (let ((device (ccl::stream-device stream direction))
-        (overlapped (overlapped)))
+  (unlock-handle (ccl::stream-device stream direction)))
+
+(defun unlock-handle (handle)
+  (let ((overlapped (overlapped)))
     (unwind-protect
-         (or (unlock-file-ex device
+         (or (unlock-file-ex (make-pointer handle)
                              0
                              MAXDWORD
                              MAXDWORD
                              overlapped)
              (get-last-error))
       (cffi:foreign-free overlapped))))
-
-;;; ! lockfileex(file, dwFlags, 0, 1, 0, &ov))
-;;;
