@@ -157,3 +157,14 @@
   (:report (lambda (c s)
              (with-slots (code) c
                (format s "~a (#~a)" (format-message code) code)))))
+
+(defmacro with-locked-file ((file &rest args &key &allow-other-keys)
+                            &body body)
+  (with-thunk (body)
+    `(call/locked-file ,body ,file ,@args)))
+
+(defun call/locked-file (fn file &rest args &key &allow-other-keys)
+  (let ((handle (apply #'lock-file file args)))
+    (unwind-protect
+         (funcall fn)
+      (unlock-handle handle))))
