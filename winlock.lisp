@@ -119,58 +119,7 @@
 (defun unlock-file (handle)
   (close-handle (file-handle-handle handle)))
 
-(defcstruct _overlapped
-  (Internal :unsigned-long)
-  (InternalHigh :unsigned-long)
-  (hEvent :unsigned-long))
-
-(defun overlapped ()
-  (lret ((o (foreign-alloc '(:struct _overlapped))))
-    (with-foreign-slots ((Internal InternalHigh hEvent) o (:struct _overlapped))
-      (setf Internal 0 InternalHigh 0 hEvent 0))))
-
-(defctype LPOVERLAPPED (:pointer (:struct _overlapped)))
-
-(defcfun ("LockFileEx" lock-file-ex :convention :stdcall) :boolean
-  (hFile HANDLE)
-  (dwFlags DWORD)
-  (dwReserved DWORD)
-  (nNumberOfBytesToLockLow DWORD)
-  (nNumberOfBytesToLockHigh DWORD)
-  (lpOverlapped LPOVERLAPPED))
-
-(defcfun ("UnlockFileEx" unlock-file-ex :convention :stdcall) :boolean
-  (hFile HANDLE)
-  (dwReserved DWORD)
-  (nNumberOfBytesToUnlockLow DWORD)
-  (nNumberOfBytesToUnlockHigh DWORD)
-  (lpOverlapped LPOVERLAPPED))
-
 (defcfun ("GetLastError" get-last-error :convention :stdcall) DWORD)
-
-(defun lock-handle (handle)
-  (let ((overlapped (overlapped)))
-    (unwind-protect
-         (or (lock-file-ex handle
-                           (logior LOCKFILE-EXCLUSIVE-LOCK
-                                   LOCKFILE-FAIL-IMMEDIATELY)
-                           0
-                           MAXDWORD
-                           MAXDWORD
-                           overlapped)
-             (error 'winlock-error :code (get-last-error)))
-      (cffi:foreign-free overlapped))))
-
-(defun unlock-handle (handle)
-  (let ((overlapped (overlapped)))
-    (unwind-protect
-         (or (unlock-file-ex handle
-                             0
-                             MAXDWORD
-                             MAXDWORD
-                             overlapped)
-             (error 'winlock-error :code (get-last-error)))
-      (cffi:foreign-free overlapped))))
 
 ;;; Lightly adapted from the winhttp library.
 
