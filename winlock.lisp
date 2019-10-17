@@ -86,12 +86,15 @@
              (:output GENERIC-WRITE)
              (:io (logior GENERIC-READ GENERIC-WRITE))))
          (share-mode
-           (if (not shared)
-               no-sharing
-               (ecase-of direction direction
-                 (:input FILE-SHARE-READ)
-                 (:output FILE-SHARE-WRITE)
-                 (:io (logior FILE-SHARE-READ FILE-SHARE-WRITE)))))
+           (if shared
+               (logior
+                ;; This is required because of FILE-FLAG-DELETE-ON-CLOSE.
+                (if direct 0 FILE-SHARE-DELETE)
+                (ecase-of direction direction
+                  (:input FILE-SHARE-READ)
+                  (:output FILE-SHARE-WRITE)
+                  (:io (logior FILE-SHARE-READ FILE-SHARE-WRITE))))
+               no-sharing))
          (disposition
            (if direct
                OPEN-EXISTING
