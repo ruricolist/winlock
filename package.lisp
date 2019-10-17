@@ -1,3 +1,6 @@
 (uiop:define-package :winlock
-    (:use :cl :named-readtables :cffi)
-  (:mix :uiop :alexandria :serapeum))
+  (:use :cl :named-readtables :cffi)
+  (:mix :uiop :alexandria :serapeum)
+  (:export
+   #:lock-file
+   #:unlock-file))

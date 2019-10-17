@@ -16,11 +16,82 @@
 
 (defctype DWORD :unsigned-int)
 
-;; (defctype HANDLE (:pointer :void))
 (defctype HANDLE :pointer)
 (defctype LPCVOID :pointer)
 (defctype LPSTR :pointer)
+(defctype LPCWSTR (:string :encoding :utf16-le))
+(defctype LPSECURITY_ATTRIBUTES :pointer)
 (defctype va_list :pointer)
+
+(defconst GENERIC-READ #x80000000)
+(defconst GENERIC-WRITE #x40000000)
+(defconst GENERIC-EXECUTE #x20000000)
+(defconst GENERIC-ALL #x10000000)
+
+(defconst no-sharing 0)
+(defconst FILE-SHARE-DELETE #x00000004)
+(defconst FILE-SHARE-READ #x00000001)
+(defconst FILE-SHARE-WRITE #x00000002)
+
+(defconst CREATE-ALWAYS 2)
+(defconst CREATE-NEW 1)
+(defconst OPEN-ALWAYS 4)
+(defconst OPEN-EXISTING 3)
+(defconst TRUNCATE-EXISTING 5)
+
+(defconst FILE-ATTRIBUTE-NORMAL 128)
+(defconst FILE-ATTRIBUTE-TEMPORARY 256)
+
+(defconst FILE-FLAG-POSIX-SEMANTICS #x0100000)
+(defconst FILE-FLAG-RANDOM-ACCESS #x10000000)
+
+(def INVALID-HANDLE-VALUE -1)
+
+(defconstructor file-handle
+  (file string)
+  (handle t))
+
+;;; Returns INVALID-HANDLE-VALUE (-1) on error.
+(defcfun ("CreateFileW" %create-file :convention :stdcall) :int
+  (lpFileName LPCWSTR)
+  (dwDesiredAccess DWORD)
+  (dwShareMode DWORD)
+  (lpSecurityAttributes LPSECURITY_ATTRIBUTES)
+  (dwCreationDisposition DWORD)
+  (dwFlagsAndAttributes DWORD)
+  (hTemplateFile HANDLE))
+
+(defcfun ("CloseHandle" close-handle :convention :stdcall) :boolean
+  (hObject HANDLE))
+
+(defun lockfile (file)
+  (string+ (native-namestring file) ".lock"))
+
+(defun lock-file (file)
+  (lock-file-1 (lockfile file)))
+
+(defun lock-file-1 (file)
+  (let* ((file (native-namestring file))
+         (handle (create-file file)))
+    (file-handle file handle)))
+
+(defun create-file (file)
+  (declare (string file))
+  (let ((val
+          (with-foreign-string (f file :encoding :utf-16le)
+            (%create-file f
+                          (logior GENERIC-READ GENERIC-WRITE)
+                          no-sharing
+                          (null-pointer)
+                          OPEN-ALWAYS
+                          FILE-ATTRIBUTE-NORMAL
+                          (null-pointer)))))
+    (if (eql val INVALID-HANDLE-VALUE)
+        (error 'winlock-error :code (get-last-error))
+        (make-pointer val))))
+
+(defun unlock-file (handle)
+  (close-handle (file-handle-handle handle)))
 
 (defcstruct _overlapped
   (Internal :unsigned-long)
@@ -51,13 +122,10 @@
 
 (defcfun ("GetLastError" get-last-error :convention :stdcall) DWORD)
 
-(defun lock-stream-file (stream direction)
-  (lock-handle (ccl::stream-device stream direction)))
-
 (defun lock-handle (handle)
   (let ((overlapped (overlapped)))
     (unwind-protect
-         (or (lock-file-ex (make-pointer handle)
+         (or (lock-file-ex handle
                            (logior LOCKFILE-EXCLUSIVE-LOCK
                                    LOCKFILE-FAIL-IMMEDIATELY)
                            0
@@ -67,19 +135,18 @@
              (error 'winlock-error :code (get-last-error)))
       (cffi:foreign-free overlapped))))
 
-(defun unlock-stream-file (stream direction)
-  (unlock-handle (ccl::stream-device stream direction)))
-
 (defun unlock-handle (handle)
   (let ((overlapped (overlapped)))
     (unwind-protect
-         (or (unlock-file-ex (make-pointer handle)
+         (or (unlock-file-ex handle
                              0
                              MAXDWORD
                              MAXDWORD
                              overlapped)
              (error 'winlock-error :code (get-last-error)))
       (cffi:foreign-free overlapped))))
+
+;;; Lightly adapted from the winhttp library.
 
 (defcfun (%format-message "FormatMessageA" :convention :stdcall) DWORD
   (dwFlags DWORD)
