@@ -3,4 +3,4 @@
   (:mix :uiop :alexandria :serapeum)
   (:export
    #:lock-file
-   #:unlock-file))
+   #:unlock-handle))
