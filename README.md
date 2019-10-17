@@ -19,4 +19,8 @@ Besides `with-locked-file`, there are also unbalanced `lock-file` and `unlock-ha
 
 Caveat: the file that is locked is not actually the file itself, but another file with a `.lock` extension. E.g. if you lock `file.txt`, the actual lock is taken on `file.txt.lock`. This is because a file that is locked on Windows is accessible *only* through the handle used to lock it – even the same program cannot open the file with a different handle. You can circumvent this by passing `:direct t`; but writing a stream implementation that works on the handle returned is left an exercise for the reader.
 
+Some code in this library (for error reporting) is adapted from [winhttp][].
+
 This is intended as a building block for a portable file-locking library.
+
+[winhttp]: https://github.com/fjames86/winhttp
