@@ -1,3 +1,6 @@
 (defsystem "winlock"
   :depends-on ("serapeum" "cffi" "named-readtables")
-  :components ((:file "winlock")))
+  :serial t
+  :components ((:file "package")
+               (:file "readtable")
+               (:file "winlock")))
