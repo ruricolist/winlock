@@ -116,7 +116,7 @@
                (make-pointer val))))
     (file-handle file handle)))
 
-(defun unlock-file (handle)
+(defun unlock-handle (handle)
   (close-handle (file-handle-handle handle)))
 
 (defcfun ("GetLastError" get-last-error :convention :stdcall) DWORD)
