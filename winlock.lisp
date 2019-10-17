@@ -3,6 +3,9 @@
 
 (load-foreign-library "kernel32.dll")
 
+(deftype direction ()
+  '(member :input :output :io))
+
 (defconst MAXDWORD #xffffffff)
 
 (defconst LOCKFILE-EXCLUSIVE-LOCK #x02
@@ -41,11 +44,12 @@
 
 (defconst FILE-ATTRIBUTE-NORMAL 128)
 (defconst FILE-ATTRIBUTE-TEMPORARY 256)
+(defconst FILE-FLAG-DELETE-ON-CLOSE #x04000000)
 
 (defconst FILE-FLAG-POSIX-SEMANTICS #x0100000)
 (defconst FILE-FLAG-RANDOM-ACCESS #x10000000)
 
-(def INVALID-HANDLE-VALUE -1)
+(defconst INVALID-HANDLE-VALUE -1)
 
 (defconstructor file-handle
   (file string)
@@ -67,28 +71,50 @@
 (defun lockfile (file)
   (string+ (native-namestring file) ".lock"))
 
-(defun lock-file (file)
-  (lock-file-1 (lockfile file)))
-
-(defun lock-file-1 (file)
-  (let* ((file (native-namestring file))
-         (handle (create-file file)))
+(defun lock-file (file &key
+                         (direction :input)
+                         (shared (eql direction :input))
+                         direct)
+  (let* ((file
+           (assure string
+             (if direct
+                 (native-namestring file)
+                 (lockfile file))))
+         (access
+           (ecase-of direction direction
+             (:input GENERIC-READ)
+             (:output GENERIC-WRITE)
+             (:io (logior GENERIC-READ GENERIC-WRITE))))
+         (share-mode
+           (if (not shared)
+               no-sharing
+               (ecase-of direction direction
+                 (:input FILE-SHARE-READ)
+                 (:output FILE-SHARE-WRITE)
+                 (:io (logior FILE-SHARE-READ FILE-SHARE-WRITE)))))
+         (disposition
+           (if direct
+               OPEN-EXISTING
+               OPEN-ALWAYS))
+         (attrs
+           (logior FILE-FLAG-POSIX-SEMANTICS
+                   (if direct 0
+                       (logior FILE-ATTRIBUTE-TEMPORARY
+                               FILE-FLAG-DELETE-ON-CLOSE))))
+         (val
+           (with-foreign-string (f file :encoding :utf-16le)
+             (%create-file f
+                           access
+                           share-mode
+                           (null-pointer)
+                           disposition
+                           attrs
+                           (null-pointer))))
+         (handle
+           (if (eql val INVALID-HANDLE-VALUE)
+               (error 'winlock-error :code (get-last-error))
+               (make-pointer val))))
     (file-handle file handle)))
-
-(defun create-file (file)
-  (declare (string file))
-  (let ((val
-          (with-foreign-string (f file :encoding :utf-16le)
-            (%create-file f
-                          (logior GENERIC-READ GENERIC-WRITE)
-                          no-sharing
-                          (null-pointer)
-                          OPEN-ALWAYS
-                          FILE-ATTRIBUTE-NORMAL
-                          (null-pointer)))))
-    (if (eql val INVALID-HANDLE-VALUE)
-        (error 'winlock-error :code (get-last-error))
-        (make-pointer val))))
 
 (defun unlock-file (handle)
   (close-handle (file-handle-handle handle)))
