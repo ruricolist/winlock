@@ -75,17 +75,17 @@
                          (direction :input)
                          (shared (eql direction :input))
                          direct)
-  (let* ((file
+  (lret* ((file
            (assure string
              (if direct
                  (native-namestring file)
                  (lockfile file))))
-         (access
+          (access
            (ecase-of direction direction
              (:input GENERIC-READ)
              (:output GENERIC-WRITE)
              (:io (logior GENERIC-READ GENERIC-WRITE))))
-         (share-mode
+          (share-mode
            (if shared
                (logior
                 ;; This is required because of FILE-FLAG-DELETE-ON-CLOSE.
@@ -95,16 +95,16 @@
                   (:output FILE-SHARE-WRITE)
                   (:io (logior FILE-SHARE-READ FILE-SHARE-WRITE))))
                no-sharing))
-         (disposition
+          (disposition
            (if direct
                OPEN-EXISTING
                OPEN-ALWAYS))
-         (attrs
+          (attrs
            (logior FILE-FLAG-POSIX-SEMANTICS
                    (if direct 0
                        (logior FILE-ATTRIBUTE-TEMPORARY
                                FILE-FLAG-DELETE-ON-CLOSE))))
-         (val
+          (val
            (with-foreign-string (f file :encoding :utf-16le)
              (%create-file f
                            access
@@ -113,11 +113,15 @@
                            disposition
                            attrs
                            (null-pointer))))
-         (handle
+          (handle
            (if (eql val INVALID-HANDLE-VALUE)
                (error 'winlock-error :code (get-last-error))
-               (make-pointer val))))
-    (file-handle file handle)))
+               (make-pointer val)))
+          (file-handle (file-handle file handle)))
+    (tg:finalize file-handle
+                 (lambda ()
+                   (ignore-errors
+                    (close-handle handle))))))
 
 (defun unlock-handle (handle)
   (close-handle (file-handle-handle handle)))
