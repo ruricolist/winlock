@@ -9,7 +9,7 @@
   :serial t
   :components ((:file "package")
                (:file "readtable")
-               (:file "winlock")))
+               (:file "winlock" :if-feature :windows)))
 
 (defsystem "winlock/test"
   :description "Test suite for Winlock."
